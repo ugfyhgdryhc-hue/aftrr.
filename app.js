@@ -18,6 +18,26 @@
   const forgot=$('[data-forgot]');if(forgot)forgot.addEventListener('click',async e=>{e.preventDefault();if(!ensure())return;const email=$('#email').value.trim(),msg=$('.form-message',login);if(!email){say(msg,'Önce e-posta adresini yaz.','error');$('#email').focus();return;}say(msg,'Bağlantı gönderiliyor…');const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:basePath()+'login.html'});say(msg,error?friendlyError(error):'Adres kayıtlıysa sıfırlama bağlantısı gönderildi. Spam klasörünü de kontrol et.',error?'error':'success');});
   // Drawer profile, shared across pages
   async function hydrateDrawer(){if(!sb)return;const user=await getUser();const name=user?.user_metadata?.display_name||user?.user_metadata?.full_name||'Kişisel alanın',emoji=user?.user_metadata?.profile_emoji||'✿';const dn=$('#drawer-name'),de=$('#drawer-email'),da=$('#drawer-avatar');if(dn)dn.textContent=name;if(de)de.textContent=user?.email||'Anıların sana ait bir dünya.';if(da)da.textContent=emoji;}
+  // Home CTAs follow the real Supabase session: existing members go straight to their archive.
+  if (document.body.dataset.page === 'home') {
+    (async () => {
+      const ctas = $$('[data-auth-cta]');
+      const updateHomeCtas = async () => {
+        if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession();
+        ctas.forEach(link => {
+          link.href = session?.user ? 'memories.html' : 'register.html';
+          const label = link.querySelector('span');
+          if (link.classList.contains('nav-cta')) link.firstChild.textContent = session?.user ? 'Anı arşivim ' : 'Hesap oluştur ';
+          else if (link.classList.contains('light')) link.textContent = session?.user ? 'Anı arşivime git ↗' : 'AFTR. dünyanı oluştur ↗';
+          else if (link.classList.contains('full')) link.textContent = session?.user ? 'Anı arşivime git ↗' : 'Kendi dünyanı oluştur ↗';
+          else if (label) { link.firstChild.textContent = session?.user ? 'Anı arşivime git ' : 'Dünyanı oluştur '; }
+        });
+      };
+      await updateHomeCtas();
+      if (sb) sb.auth.onAuthStateChange(() => { updateHomeCtas(); });
+    })();
+  }
   hydrateDrawer();const drawerOut=$('#drawer-signout');if(drawerOut)drawerOut.addEventListener('click',async()=>{if(sb)await sb.auth.signOut();location.href='index.html';});
   // Enhanced memories archive
   const grid=$('#memory-grid'),count=$('#memory-count'),notice=$('#memory-notice'),fileInputs=[$('#memory-upload'),$('#empty-upload')].filter(Boolean);
