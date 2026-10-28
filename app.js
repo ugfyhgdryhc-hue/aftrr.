@@ -1,134 +1,51 @@
 (() => {
-  const $ = (s, root=document) => root.querySelector(s);
-  const $$ = (s, root=document) => [...root.querySelectorAll(s)];
-  const body = document.body;
-  const storedTheme = localStorage.getItem('aftr-theme') || 'dark';
-  body.dataset.theme = storedTheme;
-  const drawer = $('.drawer'), scrim = $('.scrim');
-  const openMenu = () => { if(drawer){drawer.classList.add('open');drawer.setAttribute('aria-hidden','false');} if(scrim) scrim.classList.add('open'); };
-  const closeMenu = () => { if(drawer){drawer.classList.remove('open');drawer.setAttribute('aria-hidden','true');} if(scrim) scrim.classList.remove('open'); };
-  $$('[data-menu-open]').forEach(b=>b.addEventListener('click',openMenu));
-  $$('[data-menu-close]').forEach(b=>b.addEventListener('click',closeMenu));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
-  $$('.theme-card').forEach(card=>{
-    if(card.dataset.theme===storedTheme) card.classList.add('selected');
-    card.addEventListener('click',()=>{
-      const theme=card.dataset.theme;body.dataset.theme=theme;localStorage.setItem('aftr-theme',theme);
-      $$('.theme-card').forEach(c=>c.classList.toggle('selected',c===card));
-      const msg=$('#theme-message');if(msg)msg.textContent=`${card.querySelector('b').textContent} teması seçildi. Bu cihazda hatırlanacak.`;
-    });
-  });
-  const year=$('#year');if(year)year.textContent=new Date().getFullYear();
-
-  const configured = window.supabase && window.AFTR_SUPABASE_URL && window.AFTR_SUPABASE_PUBLISHABLE_KEY;
-  const sb = configured ? window.supabase.createClient(window.AFTR_SUPABASE_URL, window.AFTR_SUPABASE_PUBLISHABLE_KEY) : null;
-  const friendlyError = (err) => {
-    const m=(err && err.message)||'Bilinmeyen bir hata oluştu.';
-    if(/Invalid login credentials/i.test(m)) return 'E-posta veya şifre yanlış.';
-    if(/User already registered/i.test(m)) return 'Bu e-posta ile zaten bir hesap var. Giriş yapmayı dene.';
-    if(/Email not confirmed/i.test(m)) return 'Önce e-posta adresini doğrula. Gelen kutunu ve spam klasörünü kontrol et.';
-    if(/Password should be at least/i.test(m)) return 'Şifren en az 8 karakter olmalı.';
-    if(/Failed to fetch|NetworkError/i.test(m)) return 'Bağlantı kurulamadı. İnternetini ve Supabase proje durumunu kontrol et.';
-    return m;
-  };
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)], body=document.body;
+  const storedTheme=localStorage.getItem('aftr-theme')||'dark';body.dataset.theme=storedTheme;
+  const drawer=$('.drawer'),scrim=$('.scrim');
+  const openMenu=()=>{drawer?.classList.add('open');drawer?.setAttribute('aria-hidden','false');scrim?.classList.add('open');};
+  const closeMenu=()=>{drawer?.classList.remove('open');drawer?.setAttribute('aria-hidden','true');scrim?.classList.remove('open');};
+  $$('[data-menu-open]').forEach(b=>b.addEventListener('click',openMenu));$$('[data-menu-close]').forEach(b=>b.addEventListener('click',closeMenu));document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
+  $$('.theme-card').forEach(card=>{if(card.dataset.theme===storedTheme)card.classList.add('selected');card.addEventListener('click',()=>{body.dataset.theme=card.dataset.theme;localStorage.setItem('aftr-theme',card.dataset.theme);$$('.theme-card').forEach(c=>c.classList.toggle('selected',c===card));const msg=$('#theme-message');if(msg)msg.textContent=`${$('b',card)?.textContent||'Tema'} seçildi. Bu cihazda hatırlanacak.`;});});
+  const configured=window.supabase&&window.AFTR_SUPABASE_URL&&window.AFTR_SUPABASE_PUBLISHABLE_KEY;
+  const sb=configured?window.supabase.createClient(window.AFTR_SUPABASE_URL,window.AFTR_SUPABASE_PUBLISHABLE_KEY):null;
   const say=(el,msg,kind='')=>{if(el){el.textContent=msg;el.dataset.kind=kind;}};
-  const ensureConfigured=()=>{if(!sb){alert('Supabase bağlantı dosyası yüklenemedi. supabase-config.js dosyasını ve script bağlantılarını kontrol et.');return false;}return true;};
-
-  const register=$('[data-register-form]');
-  if(register) register.addEventListener('submit',async e=>{
-    e.preventDefault(); if(!ensureConfigured())return;
-    const msg=$('.form-message',register), btn=$('button[type="submit"]',register);
-    const name=$('#name').value.trim(), email=$('#email').value.trim(), password=$('#password').value;
-    btn.disabled=true; say(msg,'Hesabın oluşturuluyor…');
-    try{
-      const {data,error}=await sb.auth.signUp({email,password,options:{data:{display_name:name},emailRedirectTo:location.origin+location.pathname.replace(/[^/]*$/,'')+'login.html'}});
-      if(error) throw error;
-      if(data.session){say(msg,'Hesabın oluşturuldu! Anı arşivine yönlendiriliyorsun.','success');setTimeout(()=>location.href='memories.html',800);}
-      else say(msg,'Kayıt isteğin alındı. E-posta doğrulaması açıksa gelen kutuna gelen bağlantıya bas, ardından giriş yap.','success');
-    }catch(err){say(msg,friendlyError(err),'error');}finally{btn.disabled=false;}
-  });
-
-  const login=$('[data-login-form]');
-  if(login) login.addEventListener('submit',async e=>{
-    e.preventDefault(); if(!ensureConfigured())return;
-    const msg=$('.form-message',login), btn=$('button[type="submit"]',login);
-    btn.disabled=true;say(msg,'Giriş yapılıyor…');
-    try{
-      const {error}=await sb.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
-      if(error)throw error;
-      say(msg,'Giriş başarılı. Anı arşivin açılıyor…','success');setTimeout(()=>location.href='memories.html',500);
-    }catch(err){say(msg,friendlyError(err),'error');}finally{btn.disabled=false;}
-  });
-  const forgot=$('[data-forgot]');
-  if(forgot)forgot.addEventListener('click',async e=>{
-    e.preventDefault();if(!ensureConfigured())return;
-    const email=$('#email').value.trim();const msg=$('.form-message',login);
-    if(!email){say(msg,'Önce e-posta adresini yaz, sonra “Şifremi unuttum” seçeneğine bas.','error');$('#email').focus();return;}
-    say(msg,'Şifre sıfırlama bağlantısı gönderiliyor…');
-    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname.replace(/[^/]*$/,'')+'login.html'});
-    say(msg,error?friendlyError(error):'Şifre sıfırlama bağlantısı gönderildiyse e-posta adresine ulaşacaktır. Spam klasörünü de kontrol et.',error?'error':'success');
-  });
-
-  async function getUser(){if(!sb)return null;const {data:{session}}=await sb.auth.getSession();return session?.user||null;}
-  const grid=$('#memory-grid'), count=$('#memory-count');
-  const fileInputs=[$('#memory-upload'),$('#empty-upload')].filter(Boolean);
-  function emptyState(message='Henüz anı eklemedin. İlk fotoğrafını veya videonu yükleyebilirsin.'){
-    if(!grid)return;grid.innerHTML='';const box=document.createElement('div');box.className='empty-state';
-    const art=document.createElement('div');art.className='empty-illustration';art.textContent='✧';
-    const h=document.createElement('h2');h.textContent='Hikâyen burada başlasın.';
-    const p=document.createElement('p');p.textContent=message;
-    const label=document.createElement('label');label.className='button quiet';label.textContent='İlk anını ekle ';
-    const input=document.createElement('input');input.type='file';input.accept='image/*,video/*';input.multiple=true;input.hidden=true;input.addEventListener('change',()=>uploadFiles(input));label.append(input);box.append(art,h,p,label);grid.append(box);
+  const friendlyError=err=>{const m=err?.message||'Bilinmeyen bir hata oluştu.';if(/Invalid login credentials/i.test(m))return'E-posta veya şifre yanlış.';if(/User already registered/i.test(m))return'Bu e-posta ile zaten bir hesap var. Giriş yapmayı dene.';if(/Email not confirmed/i.test(m))return'Önce e-posta adresini doğrula.';if(/Password should be at least/i.test(m))return'Şifren en az 8 karakter olmalı.';if(/Failed to fetch|NetworkError/i.test(m))return'Bağlantı kurulamadı. İnternetini kontrol et.';if(/column .* does not exist/i.test(m))return'Anı özellikleri için Supabase güncelleme SQL kodunu çalıştırman gerekiyor.';return m;};
+  const ensure=()=>{if(!sb){alert('Supabase bağlantısı yüklenemedi. supabase-config.js dosyasını kontrol et.');return false;}return true;};
+  const getUser=async()=>{if(!sb)return null;const {data:{session}}=await sb.auth.getSession();return session?.user||null;};
+  const basePath=()=>location.origin+location.pathname.replace(/[^/]*$/,'');
+  const register=$('[data-register-form]');if(register)register.addEventListener('submit',async e=>{e.preventDefault();if(!ensure())return;const msg=$('.form-message',register),btn=$('button[type="submit"]',register);btn.disabled=true;say(msg,'Hesabın oluşturuluyor…');try{const {data,error}=await sb.auth.signUp({email:$('#email').value.trim(),password:$('#password').value,options:{data:{display_name:$('#name').value.trim()},emailRedirectTo:basePath()+'login.html'}});if(error)throw error;if(data.session){say(msg,'Hesabın hazır! Anı arşivin açılıyor…','success');setTimeout(()=>location.href='memories.html',700);}else say(msg,'Kayıt isteğin alındı. E-postandaki doğrulama bağlantısına bas, sonra giriş yap.','success');}catch(err){say(msg,friendlyError(err),'error');}finally{btn.disabled=false;}});
+  const login=$('[data-login-form]');if(login)login.addEventListener('submit',async e=>{e.preventDefault();if(!ensure())return;const msg=$('.form-message',login),btn=$('button[type="submit"]',login);btn.disabled=true;say(msg,'Giriş yapılıyor…');try{const {error}=await sb.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});if(error)throw error;say(msg,'Giriş başarılı. Anıların açılıyor…','success');setTimeout(()=>location.href=new URLSearchParams(location.search).get('next')==='memories'?'memories.html':'memories.html',450);}catch(err){say(msg,friendlyError(err),'error');}finally{btn.disabled=false;}});
+  const forgot=$('[data-forgot]');if(forgot)forgot.addEventListener('click',async e=>{e.preventDefault();if(!ensure())return;const email=$('#email').value.trim(),msg=$('.form-message',login);if(!email){say(msg,'Önce e-posta adresini yaz.','error');$('#email').focus();return;}say(msg,'Bağlantı gönderiliyor…');const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:basePath()+'login.html'});say(msg,error?friendlyError(error):'Adres kayıtlıysa sıfırlama bağlantısı gönderildi. Spam klasörünü de kontrol et.',error?'error':'success');});
+  // Drawer profile, shared across pages
+  async function hydrateDrawer(){if(!sb)return;const user=await getUser();const name=user?.user_metadata?.display_name||user?.user_metadata?.full_name||'Kişisel alanın',emoji=user?.user_metadata?.profile_emoji||'✿';const dn=$('#drawer-name'),de=$('#drawer-email'),da=$('#drawer-avatar');if(dn)dn.textContent=name;if(de)de.textContent=user?.email||'Anıların sana ait bir dünya.';if(da)da.textContent=emoji;}
+  hydrateDrawer();const drawerOut=$('#drawer-signout');if(drawerOut)drawerOut.addEventListener('click',async()=>{if(sb)await sb.auth.signOut();location.href='index.html';});
+  // Enhanced memories archive
+  const grid=$('#memory-grid'),count=$('#memory-count'),notice=$('#memory-notice'),fileInputs=[$('#memory-upload'),$('#empty-upload')].filter(Boolean);
+  let currentUser=null, allRows=[], activeTag='';
+  const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const emojiOptions=['🤍','☕','🌸','🌙','🦋','🍒','🌿','✨','🧸','🎧','🌧️','🪩','🧋','🧁','🪻','📸'];
+  const frameOptions=[['none','Çerçevesiz',''],['coffee','Coffee lover','☕'],['floral','Çiçek bahçesi','🌸'],['butterfly','Kelebekler','🦋'],['garden','Botanik','🌿'],['film','Analog film','✦'],['sakura','Sakura','🌸']];
+  function openEditor({file=null,row=null,onSave}){
+    const old=row||{};const overlay=document.createElement('div');overlay.className='editor-overlay';overlay.innerHTML=`<section class="memory-editor" role="dialog" aria-modal="true" aria-labelledby="editor-title"><div class="editor-head"><div><p class="eyebrow">ANINI KİŞİSELLEŞTİR</p><h2 id="editor-title">${file?'Yeni anına bir his kat.':'Anını düzenle.'}</h2></div><button class="icon-btn" type="button" data-editor-close aria-label="Kapat">✕</button></div><div class="editor-preview" id="editor-preview"><span>${escapeHTML(old.emoji||'✧')}</span><small>${escapeHTML(file?.name||old.title||'Yeni anı')}</small></div><form id="memory-editor-form"><label>Başlık<input id="edit-title" maxlength="90" placeholder="O günün adı ne olsun?" value="${escapeHTML(old.title||file?.name?.replace(/\.[^.]+$/,'')||'')}"></label><label>Biraz anlat <textarea id="edit-description" maxlength="600" rows="3" placeholder="Bu anıyı özel yapan neydi?">${escapeHTML(old.description||'')}</textarea></label><div class="editor-two"><label>Anının emojisi<select id="edit-emoji">${emojiOptions.map(e=>`<option ${e===(old.emoji||'🤍')?'selected':''}>${e}</option>`).join('')}</select></label><label>Çerçeve<select id="edit-frame">${frameOptions.map(([v,n])=>`<option value="${v}" ${v===(old.frame||'none')?'selected':''}>${n}</option>`).join('')}</select></label></div><label>Etiketler <small class="muted">Virgülle ayır · örn. kahve, arkadaşlar, yaz</small><input id="edit-tags" maxlength="240" placeholder="kahve, arkadaşlar, yaz" value="${escapeHTML((old.tags||[]).join(', '))}"></label><div class="frame-gallery">${frameOptions.slice(1).map(([v,n,em])=>`<button type="button" class="frame-choice ${v===(old.frame||'none')?'selected':''}" data-frame-choice="${v}"><span class="frame-demo frame-${v}">${em} ✧ ${em}</span><b>${n}</b></button>`).join('')}</div><p class="form-message" id="editor-message"></p><div class="editor-actions"><button class="button quiet" type="button" data-editor-close>Vazgeç</button><button class="button primary" type="submit">${file?'Anıyı kaydet':'Değişiklikleri kaydet'} ↗</button></div></form></section>`;
+    document.body.append(overlay);const close=()=>overlay.remove();$$('[data-editor-close]',overlay).forEach(b=>b.addEventListener('click',close));overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
+    const frameSelect=$('#edit-frame',overlay);$$('[data-frame-choice]',overlay).forEach(b=>b.addEventListener('click',()=>{frameSelect.value=b.dataset.frameChoice;$$('[data-frame-choice]',overlay).forEach(x=>x.classList.toggle('selected',x===b));}));
+    $('#memory-editor-form',overlay).addEventListener('submit',async e=>{e.preventDefault();const btn=$('button[type="submit"]',overlay),msg=$('#editor-message',overlay);btn.disabled=true;say(msg,'Kaydediliyor…');const metadata={title:$('#edit-title',overlay).value.trim()||'Adsız anı',description:$('#edit-description',overlay).value.trim(),emoji:$('#edit-emoji',overlay).value,frame:frameSelect.value,tags:$('#edit-tags',overlay).value.split(',').map(t=>t.trim().replace(/^#/,'')).filter(Boolean).slice(0,12)};try{await onSave(metadata);close();}catch(err){say(msg,friendlyError(err),'error');btn.disabled=false;}});
   }
-  function formatBytes(n){return n<1024*1024?Math.round(n/1024)+' KB':(n/1024/1024).toFixed(1)+' MB';}
-  async function loadMemories(){
-    if(!grid)return;if(!ensureConfigured())return;
-    const user=await getUser();if(!user){location.href='login.html?next=memories';return;}
-    const {data:rows,error}=await sb.from('memories').select('*').eq('user_id',user.id).order('created_at',{ascending:false});
-    if(error){emptyState('Anılar yüklenemedi: '+friendlyError(error));return;}
-    grid.innerHTML='';
-    for(const row of rows){
-      const {data:asset}=await sb.storage.from('aftr-memories').createSignedUrl(row.file_path,3600);
-      const card=document.createElement('article');card.className='memory-item';
-      if(asset?.signedUrl){const media=document.createElement(row.media_type.startsWith('video/')?'video':'img');media.src=asset.signedUrl;if(media.tagName==='VIDEO')media.controls=true;else media.alt=row.title||'AFTR anısı';card.append(media);}
-      const title=document.createElement('p');title.textContent=row.title||row.file_path.split('/').pop();
-      const del=document.createElement('button');del.type='button';del.className='button quiet';del.textContent='Sil';del.addEventListener('click',()=>deleteMemory(row,card));card.append(title,del);grid.append(card);
-    }
-    if(count)count.textContent=`${rows.length} anı`;
-    if(!rows.length)emptyState();
-    const notice=$('.inline-notice');if(notice)notice.textContent='Dosyaların hesabına özel depolanır. Paylaşım bağlantısı oluşturulmadıkça herkese açık değildir.';
+  function emptyState(message='Henüz anı eklemedin. İlk fotoğrafını veya videonu ekleyebilirsin.'){if(!grid)return;grid.innerHTML=`<div class="empty-state"><div class="empty-illustration">✧</div><h2>Hikâyen burada başlasın.</h2><p>${escapeHTML(message)}</p><label class="button quiet">İlk anını ekle<input type="file" accept="image/*,video/*" multiple hidden id="empty-upload"></label></div>`;const input=$('#empty-upload');input?.addEventListener('change',()=>uploadFiles(input));}
+  const formatBytes=n=>n<1024*1024?Math.round(n/1024)+' KB':(n/1024/1024).toFixed(1)+' MB';
+  async function loadMemories(){if(!grid)return;if(!ensure())return;currentUser=await getUser();if(!currentUser){location.href='login.html?next=memories';return;}const {data:rows,error}=await sb.from('memories').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});if(error){emptyState('Anılar yüklenemedi: '+friendlyError(error));say(notice,friendlyError(error),'error');return;}allRows=rows||[];renderMemories();}
+  async function renderMemories(){if(!grid)return;const search=($('#memory-search')?.value||'').trim().toLocaleLowerCase('tr'),sort=$('#memory-sort')?.value||'newest',layout=localStorage.getItem('aftr-layout')||'grid';grid.classList.remove('layout-grid','layout-masonry','layout-list');grid.classList.add('layout-'+layout);$$('[data-layout]').forEach(b=>b.classList.toggle('selected',b.dataset.layout===layout));let rows=[...allRows];if(search)rows=rows.filter(r=>[r.title,r.description,...(r.tags||[])].join(' ').toLocaleLowerCase('tr').includes(search));if(activeTag)rows=rows.filter(r=>(r.tags||[]).includes(activeTag));if(sort==='oldest')rows.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));if(sort==='az')rows.sort((a,b)=>(a.title||'').localeCompare(b.title||'','tr'));if(count)count.textContent=allRows.length;if($('#memory-tag-count'))$('#memory-tag-count').textContent=new Set(allRows.flatMap(r=>r.tags||[])).size;renderTagFilters();grid.innerHTML='';if(!rows.length){emptyState(allRows.length?'Bu aramayla eşleşen anı yok. Aramayı veya etiketi değiştirebilirsin.':'Fotoğrafını ekle; başlık, emoji, etiket ve çerçeveyle kendi anına dönüştür.');return;}
+    for(const row of rows){const {data:asset}=await sb.storage.from('aftr-memories').createSignedUrl(row.file_path,3600);const card=document.createElement('article');card.className='memory-item';card.dataset.frame=row.frame||'none';const mediaWrap=document.createElement('div');mediaWrap.className='memory-media-wrap frame-'+(row.frame||'none');if(asset?.signedUrl){const media=document.createElement((row.media_type||'').startsWith('video/')?'video':'img');media.src=asset.signedUrl;if(media.tagName==='VIDEO'){media.controls=true;media.playsInline=true;}else{media.alt=row.title||'AFTR anısı';media.loading='lazy';}mediaWrap.append(media);}const deco=document.createElement('span');deco.className='frame-decoration';deco.textContent=({coffee:'☕ ✦ ☕',floral:'✿ ❀ ✿',butterfly:'🦋 ✿ 🦋',garden:'🌿 ✧ 🌿',film:'✦ · ✦ · ✦',sakura:'🌸 ✿ 🌸'})[row.frame]||'';if(row.frame&&row.frame!=='none')mediaWrap.append(deco);const badge=document.createElement('span');badge.className='memory-emoji';badge.textContent=row.emoji||'🤍';mediaWrap.append(badge);card.append(mediaWrap);const content=document.createElement('div');content.className='memory-content';const date=document.createElement('small');date.className='memory-date';date.textContent=new Date(row.created_at).toLocaleDateString('tr-TR',{day:'numeric',month:'long',year:'numeric'});const title=document.createElement('h3');title.textContent=row.title||'Adsız anı';content.append(date,title);if(row.description){const desc=document.createElement('p');desc.className='memory-description';desc.textContent=row.description;content.append(desc);}if(row.tags?.length){const tags=document.createElement('div');tags.className='memory-tags';row.tags.forEach(t=>{const tag=document.createElement('button');tag.type='button';tag.textContent='#'+t;tag.addEventListener('click',()=>{activeTag=t;renderMemories();});tags.append(tag);});content.append(tags);}const actions=document.createElement('div');actions.className='memory-actions';const edit=document.createElement('button');edit.className='memory-action';edit.type='button';edit.textContent='✎ Düzenle';edit.addEventListener('click',()=>openEditor({row,onSave:async meta=>{const {error}=await sb.from('memories').update(meta).eq('id',row.id).eq('user_id',currentUser.id);if(error)throw error;Object.assign(row,meta);say(notice,'Anın güncellendi.','success');await loadMemories();}}));const del=document.createElement('button');del.className='memory-action danger';del.type='button';del.textContent='Sil';del.addEventListener('click',()=>deleteMemory(row));actions.append(edit,del);content.append(actions);card.append(content);grid.append(card);}
   }
-  async function uploadFiles(input){
-    if(!input.files?.length)return;if(!ensureConfigured())return;
-    const user=await getUser();if(!user){location.href='login.html?next=memories';return;}
-    const files=[...input.files];input.value='';
-    const notice=$('.inline-notice');
-    for(const file of files){
-      if(!file.type.startsWith('image/')&&!file.type.startsWith('video/')){say(notice,`${file.name}: yalnızca fotoğraf veya video yüklenebilir.`,'error');continue;}
-      if(file.size>50*1024*1024){say(notice,`${file.name}: dosya 50 MB sınırını aşıyor.`,'error');continue;}
-      say(notice,`${file.name} yükleniyor (${formatBytes(file.size)})…`);
-      const safeName=file.name.normalize('NFKD').replace(/[^\w.-]+/g,'-').slice(-100)||'memory';
-      const path=`${user.id}/${crypto.randomUUID()}-${safeName}`;
-      const {error:uploadError}=await sb.storage.from('aftr-memories').upload(path,file,{contentType:file.type,upsert:false});
-      if(uploadError){say(notice,`${file.name}: ${friendlyError(uploadError)}`,'error');continue;}
-      const {error:dbError}=await sb.from('memories').insert({user_id:user.id,title:file.name,file_path:path,media_type:file.type});
-      if(dbError){await sb.storage.from('aftr-memories').remove([path]);say(notice,`${file.name}: ${friendlyError(dbError)}`,'error');continue;}
-      say(notice,`${file.name} güvenli arşivine eklendi.`,'success');
-    }
-    await loadMemories();
-  }
-  async function deleteMemory(row,card){
-    if(!confirm('Bu anıyı kalıcı olarak silmek istiyor musun?'))return;
-    const {error:dbError}=await sb.from('memories').delete().eq('id',row.id);
-    if(dbError){alert(friendlyError(dbError));return;}
-    const {error:fileError}=await sb.storage.from('aftr-memories').remove([row.file_path]);
-    if(fileError)console.warn('Dosya silinemedi:',fileError.message);
-    card.remove();const remaining=$$('.memory-item',grid).length;if(count)count.textContent=`${remaining} anı`;if(!remaining)emptyState();
-  }
-  fileInputs.forEach(input=>input.addEventListener('change',()=>uploadFiles(input)));
-  if(grid)loadMemories();
-
-  const status=$('#account-status');
-  if(status){(async()=>{if(!ensureConfigured())return;const user=await getUser();if(!user){status.textContent='Şu anda giriş yapılmamış. Hesabına erişmek için giriş yap.';return;}status.textContent=`Giriş yapılan hesap: ${user.email||'e-posta bilgisi yok'}`;})();}
-  const signout=$('#sign-out');if(signout)signout.addEventListener('click',async()=>{if(!ensureConfigured())return;const {error}=await sb.auth.signOut();if(error){alert(friendlyError(error));return;}location.href='index.html';});
+  function renderTagFilters(){const wrap=$('#tag-filter');if(!wrap)return;const tags=[...new Set(allRows.flatMap(r=>r.tags||[]))].sort((a,b)=>a.localeCompare(b,'tr'));wrap.innerHTML='';if(!tags.length)return;const all=document.createElement('button');all.className='tag-pill '+(!activeTag?'selected':'');all.textContent='Tüm etiketler';all.addEventListener('click',()=>{activeTag='';renderMemories();});wrap.append(all);tags.forEach(t=>{const b=document.createElement('button');b.className='tag-pill '+(activeTag===t?'selected':'');b.textContent='#'+t;b.addEventListener('click',()=>{activeTag=activeTag===t?'':t;renderMemories();});wrap.append(b);});}
+  async function uploadFiles(input){if(!input.files?.length)return;if(!ensure())return;currentUser=await getUser();if(!currentUser){location.href='login.html?next=memories';return;}const files=[...input.files];input.value='';for(const file of files){if(!file.type.startsWith('image/')&&!file.type.startsWith('video/')){say(notice,`${file.name}: yalnızca fotoğraf veya video yüklenebilir.`,'error');continue;}if(file.size>50*1024*1024){say(notice,`${file.name}: 50 MB sınırını aşıyor.`,'error');continue;}openEditor({file,onSave:async meta=>{say(notice,`${file.name} yükleniyor (${formatBytes(file.size)})…`);const safeName=file.name.normalize('NFKD').replace(/[^\w.-]+/g,'-').slice(-100)||'memory';const path=`${currentUser.id}/${crypto.randomUUID()}-${safeName}`;const {error:upErr}=await sb.storage.from('aftr-memories').upload(path,file,{contentType:file.type,upsert:false});if(upErr)throw upErr;const {error:dbErr}=await sb.from('memories').insert({user_id:currentUser.id,file_path:path,media_type:file.type,...meta});if(dbErr){await sb.storage.from('aftr-memories').remove([path]);throw dbErr;}say(notice,'Anın güvenli arşivine eklendi.','success');await loadMemories();}});}}
+  async function deleteMemory(row){if(!confirm('Bu anıyı ve dosyasını kalıcı olarak silmek istiyor musun?'))return;const {error}=await sb.from('memories').delete().eq('id',row.id).eq('user_id',currentUser.id);if(error){alert(friendlyError(error));return;}const {error:fileError}=await sb.storage.from('aftr-memories').remove([row.file_path]);if(fileError)console.warn(fileError.message);allRows=allRows.filter(r=>r.id!==row.id);say(notice,'Anı silindi.','success');renderMemories();}
+  fileInputs.forEach(i=>i.addEventListener('change',()=>uploadFiles(i)));if(grid){$('#memory-search')?.addEventListener('input',()=>renderMemories());$('#memory-sort')?.addEventListener('change',()=>renderMemories());$$('[data-layout]').forEach(b=>b.addEventListener('click',()=>{localStorage.setItem('aftr-layout',b.dataset.layout);renderMemories();}));$('#memory-sort')&&($('#memory-sort').value=localStorage.getItem('aftr-sort')||'newest');$('#memory-sort')?.addEventListener('change',e=>localStorage.setItem('aftr-sort',e.target.value));loadMemories();}
+  // Profile editing
+  const profileForm=$('#profile-form');if(profileForm){(async()=>{if(!ensure())return;const user=await getUser();if(!user){location.href='login.html';return;}const meta=user.user_metadata||{},name=meta.display_name||meta.full_name||'',bio=meta.bio||'',emoji=meta.profile_emoji||'✿';$('#profile-name').value=name;$('#profile-bio').value=bio;$('#profile-heading').textContent=name||'Senin alanın';$('#profile-email-display').textContent=user.email||'';$('#profile-avatar-preview').textContent=emoji;$('#profile-joined').textContent=new Date(user.created_at).toLocaleDateString('tr-TR',{month:'short',year:'numeric'});const {count:n}=await sb.from('memories').select('*',{count:'exact',head:true}).eq('user_id',user.id);$('#profile-memory-count').textContent=n??0;$$('[data-emoji]').forEach(b=>{b.classList.toggle('selected',b.dataset.emoji===emoji);b.addEventListener('click',()=>{$$('[data-emoji]').forEach(x=>x.classList.toggle('selected',x===b));$('#profile-avatar-preview').textContent=b.dataset.emoji;});});})();profileForm.addEventListener('submit',async e=>{e.preventDefault();const user=await getUser();if(!user)return;const btn=$('button[type="submit"]',profileForm),msg=$('#profile-message');btn.disabled=true;const name=$('#profile-name').value.trim(),bio=$('#profile-bio').value.trim(),emoji=$('[data-emoji].selected')?.dataset.emoji||'✿';const {error}=await sb.auth.updateUser({data:{...user.user_metadata,display_name:name,bio,profile_emoji:emoji}});say(msg,error?friendlyError(error):'Profilin kaydedildi. ✨',error?'error':'success');if(!error){$('#profile-heading').textContent=name||'Senin alanın';await hydrateDrawer();}btn.disabled=false;});}
+  const status=$('#account-status');if(status){(async()=>{if(!ensure())return;const user=await getUser();if(!user){status.textContent='Giriş yapılmamış.';return;}status.textContent=`Giriş yapılan hesap: ${user.email||'e-posta bilgisi yok'}`;})();}
+  const out=$('#sign-out');if(out)out.addEventListener('click',async()=>{if(!ensure())return;const {error}=await sb.auth.signOut();if(error){alert(friendlyError(error));return;}location.href='index.html';});
+  const layoutSelect=$('#default-layout');if(layoutSelect){layoutSelect.value=localStorage.getItem('aftr-layout')||'grid';layoutSelect.addEventListener('change',()=>{localStorage.setItem('aftr-layout',layoutSelect.value);say($('#settings-message'),'Arşiv düzenin kaydedildi.','success');});}
+  const anim=$('#animations-toggle');if(anim){anim.checked=localStorage.getItem('aftr-animations')!=='off';anim.addEventListener('change',()=>{localStorage.setItem('aftr-animations',anim.checked?'on':'off');document.documentElement.classList.toggle('reduce-motion',!anim.checked);say($('#settings-message'),'Animasyon tercihin kaydedildi.','success');});if(!anim.checked)document.documentElement.classList.add('reduce-motion');}
+  const year=$('#year');if(year)year.textContent=new Date().getFullYear();
 })();
